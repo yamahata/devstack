@@ -175,6 +175,7 @@ QUANTUM_DIR=$DEST/quantum
 QUANTUM_CLIENT_DIR=$DEST/python-quantumclient
 MELANGE_DIR=$DEST/melange
 MELANGECLIENT_DIR=$DEST/python-melangeclient
+RYU_DIR=$DEST/ryu
 
 # Default Quantum Plugin
 Q_PLUGIN=${Q_PLUGIN:-openvswitch}
@@ -189,6 +190,15 @@ M_PORT=${M_PORT:-9898}
 M_HOST=${M_HOST:-localhost}
 # Melange MAC Address Range
 M_MAC_RANGE=${M_MAC_RANGE:-FE-EE-DD-00-00-00/24}
+
+# Ryu API Host
+RYU_API_HOST=${RYU_API_HOST:-127.0.0.1}
+# Ryu API Port
+RYU_API_PORT=${RYU_API_PORT:-8080}
+# Ryu OFP Host
+RYU_OFP_HOST=${RYU_OFP_HOST:-127.0.0.1}
+# Ryu OFP Port
+RYU_OFP_PORT=${RYU_OFP_PORT:-6633}
 
 # Name of the lvm volume group to use/create for iscsi volumes
 VOLUME_GROUP=${VOLUME_GROUP:-nova-volumes}
@@ -343,6 +353,13 @@ FLAT_INTERFACE=${FLAT_INTERFACE:-$GUEST_INTERFACE_DEFAULT}
 # Adding m-svc to ENABLED_SERVICES will start the melange service on this
 # host.
 
+OVS_BRIDGE=${OVS_BRIDGE:-br-int}
+FIXED_RANGE_ADMIN=${FIXED_RANGE_ADMIN:-10.0.1.0/24}
+FIXED_RANGE_ADMIN_GATEWAY=${FIXED_RANGE_ADMIN_GATEWAY:-10.0.1.1}
+FIXED_RANGE_DEMO=${FIXED_RANGE_DEMO:-10.0.2.0/24}
+FIXED_RANGE_DEMO_GATEWAY=${FIXED_RANGE_DEMO_GATEWAY:-10.0.2.1}
+FIXED_RANGE_MODE=${FIXED_RANGE_MODE:-10.0.3.0/24}
+FIXED_RANGE_MODE_GATEWAY=${FIXED_RANGE_MODE_GATEWAY:-10.0.3.1}
 
 # MySQL & RabbitMQ
 # ----------------
@@ -639,6 +656,9 @@ if is_service_enabled melange; then
     git_clone $MELANGECLIENT_REPO $MELANGECLIENT_DIR $MELANGECLIENT_BRANCH
 fi
 
+if is_service_enabled ryu; then
+    git_clone $RYU_REPO $RYU_DIR $RYU_BRANCH
+fi
 
 # Initialization
 # ==============
@@ -671,6 +691,9 @@ if is_service_enabled m-svc; then
 fi
 if is_service_enabled melange; then
     cd $MELANGECLIENT_DIR; sudo python setup.py develop
+fi
+if is_service_enabled ryu; then
+    cd $RYU_DIR; sudo python setup.py develop
 fi
 
 
@@ -892,6 +915,14 @@ if is_service_enabled g-reg; then
     fi
 fi
 
+# Ryu
+# ---
+
+# launch ryu manager
+if is_service_enabled ryu; then
+    screen_it ryu "cd $RYU_DIR && $RYU_DIR/bin/ryu-manager --flagfile $RYU_CONF"
+fi
+
 # Quantum
 # -------
 
@@ -923,6 +954,26 @@ if is_service_enabled q-svc; then
         # Make sure we're using the openvswitch plugin
         sudo sed -i -e "s/^provider =.*$/provider = quantum.plugins.openvswitch.ovs_quantum_plugin.OVSQuantumPlugin/g" $QUANTUM_PLUGIN_INI_FILE
     fi
+    if [[ "$Q_PLUGIN" = "ryu" ]]; then
+        # Install deps
+        # FIXME add to files/apts/quantum, but don't install if not needed!
+        install_package openvswitch-switch openvswitch-datapath-dkms linux-headers-$kernel_version
+        # Create database for the plugin/agent
+        if is_service_enabled mysql; then
+            mysql -u$MYSQL_USER -p$MYSQL_PASSWORD -e 'DROP DATABASE IF EXISTS ovs_quantum;'
+            mysql -u$MYSQL_USER -p$MYSQL_PASSWORD -e 'CREATE DATABASE IF NOT EXISTS ovs_quantum CHARACTER SET utf8;'
+        else
+            echo "mysql must be enabled in order to use the $Q_PLUGIN Quantum plugin."
+            exit 1
+        fi
+        QUANTUM_PLUGIN_INI_FILE=$QUANTUM_DIR/etc/plugins.ini
+        # must remove this file from existing location, otherwise Quantum will prefer it
+        if [[ -e $QUANTUM_DIR/etc/plugins.ini ]]; then
+            sudo mv $QUANTUM_DIR/etc/plugins.ini $QUANTUM_PLUGIN_INI_FILE
+        fi
+        # Make sure we're using the ryu plugin
+        sed -i -e "s/^provider =.*$/provider = quantum.plugins.ryu.ryu_quantum_plugin.RyuQuantumPlugin/g" $QUANTUM_PLUGIN_INI_FILE
+    fi
     if [[ -e $QUANTUM_DIR/etc/quantum.conf ]]; then
         sudo mv $QUANTUM_DIR/etc/quantum.conf $QUANTUM_CONF_DIR/quantum.conf
     fi
@@ -948,7 +999,36 @@ if is_service_enabled q-agt; then
         sudo sed -i -e "s/^sql_connection =.*$/sql_connection = mysql:\/\/$MYSQL_USER:$MYSQL_PASSWORD@$MYSQL_HOST\/ovs_quantum?charset=utf8/g" $QUANTUM_OVS_CONFIG_FILE
         screen_it q-agt "sleep 4; sudo python $QUANTUM_DIR/quantum/plugins/openvswitch/agent/ovs_quantum_agent.py $QUANTUM_OVS_CONFIG_FILE -v"
     fi
+    if [[ "$Q_PLUGIN" = "ryu" ]]; then
+        # Install deps
+        # FIXME add to files/apts/quantum, but don't install if not needed!
+        install_package python-netaddr python-netifaces
 
+        # Set up integration bridge
+        OVS_BRIDGE=${OVS_BRIDGE:-br-int}
+	for tun in `ifconfig -s | awk '/^tap/{print $1}'`; do
+	    ip link delete $tun || tunctl -d $tun
+	done
+        sudo ovs-vsctl --no-wait -- --if-exists del-br $OVS_BRIDGE
+        sudo ovs-vsctl --no-wait add-br $OVS_BRIDGE
+        sudo ovs-vsctl --no-wait br-set-external-id $OVS_BRIDGE bridge-id br-int
+
+        # Start up the quantum <-> ryu agent
+	QUANTUM_RYU_CONF_DIR=$QUANTUM_DIR/etc/quantum/plugins/ryu/
+        mkdir -p $QUANTUM_RYU_CONF_DIR
+        QUANTUM_RYU_CONFIG_FILE=$QUANTUM_RYU_CONF_DIR/ryu.ini
+        cat <<EOF > $QUANTUM_RYU_CONFIG_FILE
+[DATABASE]
+sql_connection = mysql://$MYSQL_USER:$MYSQL_PASSWORD@$MYSQL_HOST/ovs_quantum
+[OVS]
+integration-bridge = $OVS_BRIDGE
+openflow-controller = $RYU_OFP_HOST:$RYU_OFP_PORT
+openflow-rest-api = $RYU_API_HOST:$RYU_API_PORT
+[AGENT]
+root_helper = sudo
+EOF
+        screen_it q-agt "sleep 4; sudo python $QUANTUM_DIR/quantum/plugins/ryu/agent/ryu_quantum_agent.py $QUANTUM_RYU_CONFIG_FILE -v"
+    fi
 fi
 
 # Melange service
@@ -1353,7 +1433,9 @@ add_nova_opt "allow_resize_to_same_host=True"
 add_nova_opt "root_helper=sudo /usr/local/bin/nova-rootwrap"
 add_nova_opt "compute_scheduler_driver=$SCHEDULER"
 add_nova_opt "dhcpbridge_flagfile=$NOVA_CONF_DIR/$NOVA_CONF"
-add_nova_opt "fixed_range=$FIXED_RANGE"
+if ! is_service_enabled q-svc ryu; then
+    add_nova_opt "fixed_range=$FIXED_RANGE"
+fi
 add_nova_opt "s3_host=$SERVICE_HOST"
 add_nova_opt "s3_port=$S3_SERVICE_PORT"
 if is_service_enabled quantum; then
@@ -1371,6 +1453,13 @@ if is_service_enabled quantum; then
         add_nova_opt "libvirt_vif_type=ethernet"
         add_nova_opt "libvirt_vif_driver=nova.virt.libvirt.vif.LibvirtOpenVswitchDriver"
         add_nova_opt "linuxnet_interface_driver=nova.network.linux_net.LinuxOVSInterfaceDriver"
+        add_nova_opt "quantum_use_dhcp=True"
+    fi
+    if is_service_enabled q-svc && [[ "$Q_PLUGIN" = "ryu" ]]; then
+        add_nova_opt "libvirt_vif_type=ethernet"
+        add_nova_opt "libvirt_vif_driver=quantum.plugins.ryu.nova.vif.LibvirtOpenVswitchOFPRyuDriver"
+        add_nova_opt "linuxnet_interface_driver=quantum.plugins.ryu.nova.linux_net.LinuxOVSRyuInterfaceDriver"
+        add_nova_opt "libvirt_ovs_integration_bridge=$OVS_BRIDGE"
         add_nova_opt "quantum_use_dhcp=True"
     fi
 else
@@ -1482,6 +1571,26 @@ if is_service_enabled mysql && is_service_enabled nova; then
     $NOVA_DIR/bin/nova-manage db sync
 fi
 
+# Ryu manager
+# -----------
+
+if is_service_enabled ryu; then
+    RYU_CONF_DIR=/etc/ryu
+    if [[ ! -d $RYU_CONF_DIR ]]; then
+        sudo mkdir -p $RYU_CONF_DIR
+    fi
+    sudo chown `whoami` $RYU_CONF_DIR
+    RYU_CONF=$RYU_CONF_DIR/ryu.conf
+    sudo rm -rf $RYU_CONF
+
+    cat <<EOF > $RYU_CONF
+--wsapi_host=$RYU_API_HOST
+--wsapi_port=$RYU_API_PORT
+--ofp_listen_host=$RYU_OFP_HOST
+--ofp_tcp_listen_port=$RYU_OFP_PORT
+EOF
+fi
+
 
 # Launch Services
 # ===============
@@ -1591,11 +1700,50 @@ if is_service_enabled n-api; then
     fi
 fi
 
+function get_tenant_id {
+    name=$1
+    URL=$KEYSTONE_AUTH_PROTOCOL://$KEYSTONE_AUTH_HOST:$KEYSTONE_AUTH_PORT/v2.0
+    keystone --username admin --password $ADMIN_PASSWORD --auth_url $URL \
+             --tenant_name $name tenant-list|awk '/ '$name' /{print $2}'
+}
+
 # If we're using Quantum (i.e. q-svc is enabled), network creation has to
 # happen after we've started the Quantum service.
 if is_service_enabled mysql && is_service_enabled nova; then
     # create a small network
-    $NOVA_DIR/bin/nova-manage network create private $FIXED_RANGE 1 $FIXED_NETWORK_SIZE $NETWORK_CREATE_ARGS
+#    $NOVA_DIR/bin/nova-manage network create private $FIXED_RANGE 1 $FIXED_NETWORK_SIZE $NETWORK_CREATE_ARGS
+    if is_service_enabled key && is_service_enabled q-svc && is_service_enabled ryu; then
+        tenantid=`get_tenant_id admin`
+        $NOVA_DIR/bin/nova-manage network create --label=admin \
+            --fixed_range_v4=$FIXED_RANGE_ADMIN --project_id=$tenantid \
+            --num_networks=1 --network_size=$FIXED_NETWORK_SIZE --priority=0 \
+	    --gateway=$FIXED_RANGE_ADMIN_GATEWAY
+        tenantid=`get_tenant_id demo`
+        $NOVA_DIR/bin/nova-manage network create --label=demo \
+            --fixed_range_v4=$FIXED_RANGE_DEMO --project_id=$tenantid \
+            --num_networks=1 --network_size=$FIXED_NETWORK_SIZE --priority=0 \
+	    --gateway=$FIXED_RANGE_DEMO_GATEWAY
+        tenantid=`get_tenant_id mode`
+        $NOVA_DIR/bin/nova-manage network create --label=mode \
+            --fixed_range_v4=$FIXED_RANGE_MODE --project_id=$tenantid \
+            --num_networks=1 --network_size=$FIXED_NETWORK_SIZE --priority=0 \
+	    --gateway=$FIXED_RANGE_MODE_GATEWAY
+    elif if_service_enabled q-svc && is_service_enabled ryu; then
+        $NOVA_DIR/bin/nova-manage network create --label=admin \
+            --fixed_range_v4=$FIXED_RANGE_ADMIN --project_id=admin \
+            --num_networks=1 --network_size=$FIXED_NETWORK_SIZE --priority=0 \
+	    --gateway=$FIXED_RANGE_ADMIN_GATEWAY
+        $NOVA_DIR/bin/nova-manage network create --label=demo \
+            --fixed_range_v4=$FIXED_RANGE_DEMO --project_id=demo \
+            --num_networks=1 --network_size=$FIXED_NETWORK_SIZE --priority=0 \
+	    --gateway=$FIXED_RANGE_DEMO_GATEWAY
+        $NOVA_DIR/bin/nova-manage network create --label=mode \
+            --fixed_range_v4=$FIXED_RANGE_MODE --project_id=mode \
+            --num_networks=1 --network_size=$FIXED_NETWORK_SIZE --priority=0 \
+	    --gateway=$FIXED_RANGE_MODE_GATEWAY
+    else
+        $NOVA_DIR/bin/nova-manage network create private $FIXED_RANGE 1 $FIXED_NETWORK_SIZE
+    fi
 
     # create some floating ips
     $NOVA_DIR/bin/nova-manage floating create $FLOATING_RANGE

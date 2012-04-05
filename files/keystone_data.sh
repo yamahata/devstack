@@ -12,6 +12,8 @@
 # demo                 admin     admin
 # demo                 demo      Member, anotherrole
 # invisible_to_admin   demo      Member
+# mode                 admin     admin
+# mode                 mode      Member, anotherrole
 #
 # Variables set before calling this script:
 # SERVICE_TOKEN - aka admin_token in keystone.conf
@@ -35,6 +37,7 @@ ADMIN_TENANT=$(get_id keystone tenant-create --name=admin)
 SERVICE_TENANT=$(get_id keystone tenant-create --name=$SERVICE_TENANT_NAME)
 DEMO_TENANT=$(get_id keystone tenant-create --name=demo)
 INVIS_TENANT=$(get_id keystone tenant-create --name=invisible_to_admin)
+MODE_TENANT=$(get_id keystone tenant-create --name=mode)
 
 
 # Users
@@ -44,6 +47,9 @@ ADMIN_USER=$(get_id keystone user-create --name=admin \
 DEMO_USER=$(get_id keystone user-create --name=demo \
                                         --pass="$ADMIN_PASSWORD" \
                                         --email=demo@example.com)
+MODE_USER=$(get_id keystone user-create --name=mode \
+                                        --pass="$ADMIN_PASSWORD" \
+                                        --email=mode@example.com)
 
 
 # Roles
@@ -58,7 +64,9 @@ ANOTHER_ROLE=$(get_id keystone role-create --name=anotherrole)
 # Add Roles to Users in Tenants
 keystone user-role-add --user $ADMIN_USER --role $ADMIN_ROLE --tenant_id $ADMIN_TENANT
 keystone user-role-add --user $ADMIN_USER --role $ADMIN_ROLE --tenant_id $DEMO_TENANT
+keystone user-role-add --user $ADMIN_USER --role $ADMIN_ROLE --tenant_id $MODE_TENANT
 keystone user-role-add --user $DEMO_USER --role $ANOTHER_ROLE --tenant_id $DEMO_TENANT
+keystone user-role-add --user $MODE_USER --role $ANOTHER_ROLE --tenant_id $MODE_TENANT
 
 # TODO(termie): these two might be dubious
 keystone user-role-add --user $ADMIN_USER --role $KEYSTONEADMIN_ROLE --tenant_id $ADMIN_TENANT
@@ -69,6 +77,7 @@ keystone user-role-add --user $ADMIN_USER --role $KEYSTONESERVICE_ROLE --tenant_
 MEMBER_ROLE=$(get_id keystone role-create --name=Member)
 keystone user-role-add --user $DEMO_USER --role $MEMBER_ROLE --tenant_id $DEMO_TENANT
 keystone user-role-add --user $DEMO_USER --role $MEMBER_ROLE --tenant_id $INVIS_TENANT
+keystone user-role-add --user $MODE_USER --role $MEMBER_ROLE --tenant_id $MODE_TENANT
 
 
 # Configure service users/roles

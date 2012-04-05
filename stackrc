@@ -65,6 +65,10 @@ MELANGE_BRANCH=master
 MELANGECLIENT_REPO=https://github.com/openstack/python-melangeclient.git
 MELANGECLIENT_BRANCH=master
 
+# ryu service
+RYU_REPO=https://github.com/osrg/ryu.git
+RYU_BRANCH=master
+
 # Specify a comma-separated list of uec images to download and install into glance.
 # supported urls here are:
 #  * "uec-style" images:

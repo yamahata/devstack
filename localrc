@@ -1,0 +1,39 @@
+# for nodes for all service
+ENABLED_SERVICES=g-api,g-reg,key,n-api,n-crt,n-obj,n-cpu,n-net,n-vol,n-sch,n-novnc,n-xvnc,n-cauth,horizon,mysql,rabbit,quantum,q-svc,q-agt,ryu
+
+# for compute-only node
+# ENABLED_SERVICES=n-cpu,quantum,q-agt
+
+# when kvm vails, automatically falls back to qemu
+LIBVIRT_TYPE=kvm
+LIBVIRT_FIREWALL_DRIVER=nova.virt.firewall.NoopFirewallDriver
+Q_PLUGIN=ryu
+
+# Change SERVICE_HOST according to your environment
+#SERVICE_HOST=$HOST_IP
+
+# use same ip address for all services
+Q_HOST=$SERVICE_HOST
+M_HOST=$SERVICE_HOST
+RYU_API_HOST=$SERVICE_HOST
+RYU_OFP_HOST=$SERVICE_HOST
+MYSQL_HOST=$SERVICE_HOST
+RABBIT_HOST=$SERVICE_HOST
+GLANCE_HOSTPORT=$SERVICE_HOST:9292
+KEYSTONE_AUTH_HOST=$SERVICE_HOST
+KEYSTONE_SERVICE_HOST=$SERVICE_HOST
+
+# password
+MYSQL_PASSWORD=mysql
+RABBIT_PASSWORD=rabbit
+SERVICE_TOKEN=service_token
+SERVICE_PASSWORD=service_password
+ADMIN_PASSWORD=admin
+
+# repositories
+NOVA_REPO=https://github.com/osrg/nova.git
+NOVA_BRANCH=ryu-gre-dev
+QUANTUM_REPO=https://github.com/osrg/quantum.git
+QUANTUM_BRANCH=ryu-gre-dev
+RYU_REPO=https://github.com/osrg/ryu.git
+RYU_BRANCH=ryu-gre-dev

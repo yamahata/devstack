@@ -918,8 +918,34 @@ fi
 # Ryu
 # ---
 
+function ryu_ini_create {
+    QUANTUM_RYU_CONF_DIR=$QUANTUM_CONF_DIR/plugins/ryu/
+    QUANTUM_RYU_CONFIG_FILE=$QUANTUM_RYU_CONF_DIR/ryu.ini
+
+    mkdir -p $QUANTUM_RYU_CONF_DIR
+    QUANTUM_RYU_CONFIG_FILE_SRC=$QUANTUM_DIR/etc/quantum/plugins/ryu/ryu.ini
+    if [[ -e $QUANTUM_RYU_CONFIG_FILE_SRC ]]; then
+	sudo cp -f $QUANTUM_RYU_CONFIG_FILE_SRC $QUANTUM_RYU_CONFIG_FILE
+    fi
+    sudo sed -i -e "s/^sql_connection =.*$/sql_connection = mysql:\/\/$MYSQL_USER:$MYSQL_PASSWORD@$MYSQL_HOST\/ovs_quantum?charset=utf8/g" $QUANTUM_RYU_CONFIG_FILE
+}
+
 # launch ryu manager
 if is_service_enabled ryu; then
+    RYU_CONF_DIR=/etc/ryu
+    if [[ ! -d $RYU_CONF_DIR ]]; then
+        sudo mkdir -p $RYU_CONF_DIR
+    fi
+    sudo chown `whoami` $RYU_CONF_DIR
+    RYU_CONF=$RYU_CONF_DIR/ryu.conf
+    sudo rm -rf $RYU_CONF
+
+    cat <<EOF > $RYU_CONF
+--wsapi_host=$RYU_API_HOST
+--wsapi_port=$RYU_API_PORT
+--ofp_listen_host=$RYU_OFP_HOST
+--ofp_tcp_listen_port=$RYU_OFP_PORT
+EOF
     screen_it ryu "cd $RYU_DIR && $RYU_DIR/bin/ryu-manager --flagfile $RYU_CONF"
 fi
 
@@ -966,16 +992,17 @@ if is_service_enabled q-svc; then
             echo "mysql must be enabled in order to use the $Q_PLUGIN Quantum plugin."
             exit 1
         fi
-        QUANTUM_PLUGIN_INI_FILE=$QUANTUM_DIR/etc/plugins.ini
+        QUANTUM_PLUGIN_INI_FILE=$QUANTUM_CONF_DIR/plugins.ini
         # must remove this file from existing location, otherwise Quantum will prefer it
         if [[ -e $QUANTUM_DIR/etc/plugins.ini ]]; then
-            sudo mv $QUANTUM_DIR/etc/plugins.ini $QUANTUM_PLUGIN_INI_FILE
+            sudo cp -f $QUANTUM_DIR/etc/plugins.ini $QUANTUM_PLUGIN_INI_FILE
         fi
         # Make sure we're using the ryu plugin
         sed -i -e "s/^provider =.*$/provider = quantum.plugins.ryu.ryu_quantum_plugin.RyuQuantumPlugin/g" $QUANTUM_PLUGIN_INI_FILE
+	ryu_ini_create
     fi
     if [[ -e $QUANTUM_DIR/etc/quantum.conf ]]; then
-        sudo mv $QUANTUM_DIR/etc/quantum.conf $QUANTUM_CONF_DIR/quantum.conf
+        sudo cp -f $QUANTUM_DIR/etc/quantum.conf $QUANTUM_CONF_DIR/quantum.conf
     fi
     screen_it q-svc "cd $QUANTUM_DIR && PYTHONPATH=.:$QUANTUM_CLIENT_DIR:$PYTHONPATH python $QUANTUM_DIR/bin/quantum-server $QUANTUM_CONF_DIR/quantum.conf"
 fi
@@ -1014,19 +1041,7 @@ if is_service_enabled q-agt; then
         sudo ovs-vsctl --no-wait br-set-external-id $OVS_BRIDGE bridge-id br-int
 
         # Start up the quantum <-> ryu agent
-	QUANTUM_RYU_CONF_DIR=$QUANTUM_DIR/etc/quantum/plugins/ryu/
-        mkdir -p $QUANTUM_RYU_CONF_DIR
-        QUANTUM_RYU_CONFIG_FILE=$QUANTUM_RYU_CONF_DIR/ryu.ini
-        cat <<EOF > $QUANTUM_RYU_CONFIG_FILE
-[DATABASE]
-sql_connection = mysql://$MYSQL_USER:$MYSQL_PASSWORD@$MYSQL_HOST/ovs_quantum
-[OVS]
-integration-bridge = $OVS_BRIDGE
-openflow-controller = $RYU_OFP_HOST:$RYU_OFP_PORT
-openflow-rest-api = $RYU_API_HOST:$RYU_API_PORT
-[AGENT]
-root_helper = sudo
-EOF
+	ryu_ini_create
         screen_it q-agt "sleep 4; sudo python $QUANTUM_DIR/quantum/plugins/ryu/agent/ryu_quantum_agent.py $QUANTUM_RYU_CONFIG_FILE -v"
     fi
 fi
@@ -1570,27 +1585,6 @@ if is_service_enabled mysql && is_service_enabled nova; then
     # (re)create nova database
     $NOVA_DIR/bin/nova-manage db sync
 fi
-
-# Ryu manager
-# -----------
-
-if is_service_enabled ryu; then
-    RYU_CONF_DIR=/etc/ryu
-    if [[ ! -d $RYU_CONF_DIR ]]; then
-        sudo mkdir -p $RYU_CONF_DIR
-    fi
-    sudo chown `whoami` $RYU_CONF_DIR
-    RYU_CONF=$RYU_CONF_DIR/ryu.conf
-    sudo rm -rf $RYU_CONF
-
-    cat <<EOF > $RYU_CONF
---wsapi_host=$RYU_API_HOST
---wsapi_port=$RYU_API_PORT
---ofp_listen_host=$RYU_OFP_HOST
---ofp_tcp_listen_port=$RYU_OFP_PORT
-EOF
-fi
-
 
 # Launch Services
 # ===============

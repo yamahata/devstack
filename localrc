@@ -12,7 +12,7 @@ NOVA_REPO=https://github.com/yamahata/nova.git
 NOVA_BRANCH=ryu-gre-tunnel-apr-04-2012
 
 QUANTUM_REPO=https://github.com/yamahata/quantum.git
-QUANTUM_BRANCH=ryu-gre-tunnel-apr-04-2012
+QUANTUM_BRANCH=ryu-gre-tunnel-apr-05-2012
 
 RYU_REPO=https://github.com/yamahata/ryu.git
 RYU_BRANCH=ryu-gre-tunnel-apr-04-2012

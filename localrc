@@ -1,0 +1,8 @@
+ENABLED_SERVICES=g-api,g-reg,key,n-api,n-crt,n-obj,n-cpu,n-net,n-vol,n-sch,n-novnc,n-xvnc,n-cauth,horizon,mysql,rabbit,melange,m-svc,quantum,q-svc,q-agt
+MYSQL_PASSWORD=a1fca79c31aeb40cc962
+RABBIT_PASSWORD=b5fd53be777bca5fb4a7
+SERVICE_TOKEN=c90152678acef82c7a10
+SERVICE_PASSWORD=5a6d62947ebdb9f7cb21
+ADMIN_PASSWORD=3fe2054177e447618a66
+Q_PLUGIN=openvswitch
+LIBVIRT_FIREWALL_DRIVER=nova.virt.firewall.NoopFirewallDriver

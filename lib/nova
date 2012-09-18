@@ -83,7 +83,7 @@ function clean_iptables() {
 # cleanup_nova() - Remove residual data files, anything left over from previous
 # runs that a clean run would need to clean up
 function cleanup_nova() {
-    if is_service_enabled n-cpu; then
+    if iss_ervice_enabled n-cpu; then
         # Clean iptables from previous runs
         clean_iptables
 
@@ -213,7 +213,7 @@ function configure_nova() {
             fi
         fi
 
-        if is_service_enabled quantum && [[ $Q_PLUGIN = "openvswitch" ]] && ! sudo grep -q '^cgroup_device_acl' $QEMU_CONF ; then
+        if is_service_enabled quantum && [[ $Q_PLUGIN = "openvswitch" || $Q_PLUGIN = "ryu" ]] && ! sudo grep -q '^cgroup_device_acl' $QEMU_CONF ; then
             # Add /dev/net/tun to cgroup_device_acls, needed for type=ethernet interfaces
             cat <<EOF | sudo tee -a $QEMU_CONF
 cgroup_device_acl = [

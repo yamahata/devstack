@@ -328,6 +328,7 @@ SWIFT3_DIR=$DEST/swift3
 SWIFTCLIENT_DIR=$DEST/python-swiftclient
 QUANTUM_DIR=$DEST/quantum
 QUANTUM_CLIENT_DIR=$DEST/python-quantumclient
+RYU_DIR=$DEST/ryu
 
 # Nova defaults
 NOVA_DIR=$DEST/nova
@@ -371,6 +372,17 @@ Q_AUTH_STRATEGY=${Q_AUTH_STRATEGY:-keystone}
 Q_USE_NAMESPACE=${Q_USE_NAMESPACE:-True}
 # Meta data IP
 Q_META_DATA_IP=${Q_META_DATA_IP:-}
+
+# Ryu API Host
+RYU_API_HOST=${RYU_API_HOST:-127.0.0.1}
+# Ryu API Port
+RYU_API_PORT=${RYU_API_PORT:-8080}
+# Ryu OFP Host
+RYU_OFP_HOST=${RYU_OFP_HOST:-127.0.0.1}
+# Ryu OFP Port
+RYU_OFP_PORT=${RYU_OFP_PORT:-6633}
+# Ryu Applications
+RYU_APPS=${RYU_APPS:-ryu.app.simple_isolation,ryu.app.rest}
 
 # Name of the LVM volume group to use/create for iscsi volumes
 VOLUME_GROUP=${VOLUME_GROUP:-stack-volumes}
@@ -779,7 +791,7 @@ if is_service_enabled horizon; then
 fi
 
 if is_service_enabled q-agt; then
-    if [[ "$Q_PLUGIN" = "openvswitch" ]]; then
+    if [[ "$Q_PLUGIN" = "openvswitch" || "$Q_PLUGIN" = "ryu" ]]; then
         # Install deps
         # FIXME add to files/apts/quantum, but don't install if not needed!
         if [[ "$os_PACKAGE" = "deb" ]]; then
@@ -898,7 +910,10 @@ fi
 if is_service_enabled ceilometer; then
     install_ceilometer
 fi
-
+if is_service_enabled ryu || (is_service_enabled quantum && "$Q_PLUGIN" = "ryu"); then
+    # ryu service
+    git_clone $RYU_REPO $RYU_DIR $RYU_BRANCH
+fi
 
 # Initialization
 # ==============
@@ -941,6 +956,9 @@ if is_service_enabled heat; then
 fi
 if is_service_enabled cinder; then
     configure_cinder
+fi
+if is_service_enabled ryu || (is_service_enabled quantum && "$Q_PLUGIN" = "ryu"); then
+    setup_develop $RYU_DIR
 fi
 
 if [[ $TRACK_DEPENDS = True ]] ; then
@@ -1225,6 +1243,30 @@ if is_service_enabled g-reg; then
 
 fi
 
+# Ryu
+# ---
+# Ryu is not a part of OpenStack project. Please ignore following block if
+# you are not interested in Ryu.
+# launch ryu manager
+if is_service_enabled ryu; then
+    RYU_CONF_DIR=/etc/ryu
+    if [[ ! -d $RYU_CONF_DIR ]]; then
+        sudo mkdir -p $RYU_CONF_DIR
+    fi
+    sudo chown `whoami` $RYU_CONF_DIR
+    RYU_CONF=$RYU_CONF_DIR/ryu.conf
+    sudo rm -rf $RYU_CONF
+
+    cat <<EOF > $RYU_CONF
+--app_lists=$RYU_APPS
+--wsapi_host=$RYU_API_HOST
+--wsapi_port=$RYU_API_PORT
+--ofp_listen_host=$RYU_OFP_HOST
+--ofp_tcp_listen_port=$RYU_OFP_PORT
+EOF
+    screen_it ryu "cd $RYU_DIR && $RYU_DIR/bin/ryu-manager --flagfile $RYU_CONF"
+fi
+
 
 # Quantum
 # -------
@@ -1313,6 +1355,11 @@ if is_service_enabled quantum; then
         Q_PLUGIN_CONF_FILENAME=linuxbridge_conf.ini
         Q_DB_NAME="quantum_linux_bridge"
         Q_PLUGIN_CLASS="quantum.plugins.linuxbridge.lb_quantum_plugin.LinuxBridgePluginV2"
+    elif [[ "$Q_PLUGIN" = "ryu" ]]; then
+        Q_PLUGIN_CONF_PATH=etc/quantum/plugins/ryu
+        Q_PLUGIN_CONF_FILENAME=ryu.ini
+        Q_DB_NAME="ovs_quantum"
+        Q_PLUGIN_CLASS="quantum.plugins.ryu.ryu_quantum_plugin.RyuQuantumPluginV2"
     else
         echo "Unknown Quantum plugin '$Q_PLUGIN'.. exiting"
         exit 1
@@ -1396,6 +1443,9 @@ if is_service_enabled q-svc; then
         if [[ "$LB_VLAN_RANGES" != "" ]]; then
             iniset /$Q_PLUGIN_CONF_FILE VLANS network_vlan_ranges $LB_VLAN_RANGES
         fi
+    elif [[ "$Q_PLUGIN" = "ryu" ]]; then
+        iniset /$Q_PLUGIN_CONF_FILE OVS openflow_controller $RYU_OFP_HOST:$RYU_OFP_PORT
+        iniset /$Q_PLUGIN_CONF_FILE OVS openflow_rest_api $RYU_API_HOST:$RYU_API_PORT
     fi
 fi
 
@@ -1445,6 +1495,15 @@ if is_service_enabled q-agt; then
             iniset /$Q_PLUGIN_CONF_FILE LINUX_BRIDGE physical_interface_mappings $LB_INTERFACE_MAPPINGS
         fi
         AGENT_BINARY="$QUANTUM_DIR/bin/quantum-linuxbridge-agent"
+    elif [[ "$Q_PLUGIN" = "ryu" ]]; then
+        # Setup integration bridge
+        OVS_BRIDGE=${OVS_BRIDGE:-br-int}
+        quantum_setup_ovs_bridge $OVS_BRIDGE
+        if [[ -n "$RYU_EXT_INTERFACE" ]] ; then
+            sudo ovs-vsctl --no-wait -- add-port $OVS_BRIDGE $RYU_EXT_INTERFACE
+        fi
+        iniset /$Q_PLUGIN_CONF_FILE OVS integration_bridge $OVS_BRIDGE
+        AGENT_BINARY="$QUANTUM_DIR/quantum/plugins/ryu/agent/ryu_quantum_agent.py"
     fi
 fi
 
@@ -1468,6 +1527,9 @@ if is_service_enabled q-dhcp; then
         iniset $Q_DHCP_CONF_FILE DEFAULT interface_driver quantum.agent.linux.interface.OVSInterfaceDriver
     elif [[ "$Q_PLUGIN" = "linuxbridge" ]]; then
         iniset $Q_DHCP_CONF_FILE DEFAULT interface_driver quantum.agent.linux.interface.BridgeInterfaceDriver
+    elif [[ "$Q_PLUGIN" = "ryu" ]]; then
+        iniset $Q_DHCP_CONF_FILE DEFAULT interface_driver quantum.agent.linux.interface.RyuInterfaceDriver
+        iniset $Q_DHCP_CONF_FILE DEFAULT ryu_api_host $RYU_API_HOST:$RYU_API_PORT
     fi
 fi
 
@@ -1507,6 +1569,23 @@ if is_service_enabled q-l3; then
     elif [[ "$Q_PLUGIN" = "linuxbridge" ]]; then
         iniset $Q_L3_CONF_FILE DEFAULT interface_driver quantum.agent.linux.interface.BridgeInterfaceDriver
         iniset $Q_L3_CONF_FILE DEFAULT external_network_bridge ''
+    elif [[ "$Q_PLUGIN" = "ryu" ]]; then
+        iniset $Q_L3_CONF_FILE DEFAULT interface_driver quantum.agent.linux.interface.RyuInterfaceDriver
+        iniset $Q_L3_CONF_FILE DEFAULT ryu_api_host $RYU_API_HOST:$RYU_API_PORT
+        # Set up external bridge
+        # Create it if it does not exist
+        sudo ovs-vsctl --no-wait -- --may-exist add-br $PUBLIC_BRIDGE
+        sudo ovs-vsctl --no-wait br-set-external-id $PUBLIC_BRIDGE bridge-id $PUBLIC_BRIDGE
+        # remove internal ports
+        for PORT in `sudo ovs-vsctl --no-wait list-ports $PUBLIC_BRIDGE`; do
+            TYPE=$(sudo ovs-vsctl get interface $PORT type)
+            if [[ "$TYPE" == "internal" ]]; then
+                echo `sudo ip link delete $PORT` > /dev/null
+                sudo ovs-vsctl --no-wait del-port $bridge $PORT
+            fi
+        done
+        # ensure no IP is configured on the public bridge
+        sudo ip addr flush dev $PUBLIC_BRIDGE
     fi
 fi
 
@@ -1643,7 +1722,7 @@ if is_service_enabled n-cpu; then
     fi
 
     QEMU_CONF=/etc/libvirt/qemu.conf
-    if is_service_enabled quantum && [[ $Q_PLUGIN = "openvswitch" ]] && ! sudo grep -q '^cgroup_device_acl' $QEMU_CONF ; then
+    if is_service_enabled quantum && [[ "$Q_PLUGIN" = "openvswitch" || "$Q_PLUGIN" = "ryu" ]] && ! sudo grep -q '^cgroup_device_acl' $QEMU_CONF ; then
         # Add /dev/net/tun to cgroup_device_acls, needed for type=ethernet interfaces
         sudo chmod 666 $QEMU_CONF
         sudo cat <<EOF >> /etc/libvirt/qemu.conf
@@ -1863,7 +1942,7 @@ if is_service_enabled swift; then
     iniset ${SWIFT_CONFIG_PROXY_SERVER} filter:keystoneauth operator_roles "Member, admin"
 
     if is_service_enabled swift3;then
-        cat <<EOF>>${SWIFT_CONFIG_PROXY_SERVER}
+        cat <<EOF >>${SWIFT_CONFIG_PROXY_SERVER}
 # NOTE(chmou): s3token middleware is not updated yet to use only
 # username and password.
 [filter:s3token]
@@ -2030,6 +2109,11 @@ if is_service_enabled quantum; then
         NOVA_VIF_DRIVER="nova.virt.libvirt.vif.LibvirtHybridOVSBridgeDriver"
     elif [[ "$Q_PLUGIN" = "linuxbridge" ]]; then
         NOVA_VIF_DRIVER="nova.virt.libvirt.vif.QuantumLinuxBridgeVIFDriver"
+    elif [[ "$Q_PLUGIN" = "ryu" ]]; then
+        NOVA_VIF_DRIVER="quantum.plugins.ryu.nova.vif.LibvirtOpenVswitchOFPRyuDriver"
+        add_nova_opt "libvirt_ovs_integration_bridge=$OVS_BRIDGE"
+        add_nova_opt "linuxnet_ovs_ryu_api_host=$RYU_API_HOST:$RYU_API_PORT"
+        add_nova_opt "libvirt_ovs_ryu_api_host=$RYU_API_HOST:$RYU_API_PORT"
     fi
     add_nova_opt "libvirt_vif_driver=$NOVA_VIF_DRIVER"
     add_nova_opt "linuxnet_interface_driver=$LINUXNET_VIF_DRIVER"
@@ -2268,7 +2352,7 @@ if is_service_enabled q-svc; then
         EXT_NET_ID=$(quantum net-create ext_net -- --router:external=True | grep ' id ' | get_field 2)
         EXT_GW_IP=$(quantum subnet-create --ip_version 4 $EXT_NET_ID $FLOATING_RANGE -- --enable_dhcp=False | grep 'gateway_ip' | get_field 2)
         quantum router-gateway-set $ROUTER_ID $EXT_NET_ID
-        if [[ "$Q_PLUGIN" = "openvswitch" ]]; then
+        if [[ "$Q_PLUGIN" = "openvswitch" || "$Q_PLUGIN" = "ryu" ]]; then
             CIDR_LEN=${FLOATING_RANGE#*/}
             sudo ip addr add $EXT_GW_IP/$CIDR_LEN dev $PUBLIC_BRIDGE
             sudo ip link set $PUBLIC_BRIDGE up

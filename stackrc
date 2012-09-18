@@ -105,7 +105,7 @@ HEATCLIENT_REPO=${GIT_BASE}/heat-api/python-heatclient.git
 HEATCLIENT_BRANCH=master
 
 # ryu service
-RYU_REPO=https://github.com/osrg/ryu.git
+RYU_REPO=${GIT_BASE}/osrg/ryu.git
 RYU_BRANCH=master
 
 # Nova hypervisor configuration.  We default to libvirt with **kvm** but will

@@ -9,7 +9,8 @@ SERVICE_HOST_NAME=vtd
 # ryu,r-svc
 
 if [ "$HOST_NAME" = "$SERVICE_HOST_NAME" ]; then
-   ENABLED_SERVICES="g-api,g-reg,key,n-api,n-crt,n-obj,n-cpu,-n-net,n-vol,n-sch,n-novnc,n-xvnc,n-cauth,horizon,mysql,rabbit,quantum,q-agt,q-l3,q-dhcp,q-svc"
+   #ENABLED_SERVICES="g-api,g-reg,key,n-api,n-crt,n-obj,n-cpu,-n-net,n-vol,n-sch,n-novnc,n-xvnc,n-cauth,horizon,mysql,rabbit,quantum,q-agt,q-l3,q-dhcp,q-svc"
+   ENABLED_SERVICES="g-api,g-reg,key,n-api,n-crt,n-obj,n-cpu,-n-net,n-vol,n-sch,n-novnc,n-xvnc,n-cauth,horizon,mysql,rabbit,quantum,q-agt,q-dhcp,q-svc"
 else
    # for compute-only node
    ENABLED_SERVICES="n-cpu,quantum,q-agt,q-l3"

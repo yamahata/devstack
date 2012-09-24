@@ -201,9 +201,9 @@ if [[ $EUID -eq 0 ]]; then
     cp -r -f -T "$PWD" "$STACK_DIR"
     chown -R stack "$STACK_DIR"
     if [[ "$SHELL_AFTER_RUN" != "no" ]]; then
-        exec su -c "set -e; cd $STACK_DIR; bash stack.sh; bash" stack
+        exec su -c "set -e; cd $STACK_DIR; bash -x stack.sh; bash" stack
     else
-        exec su -c "set -e; cd $STACK_DIR; bash stack.sh" stack
+        exec su -c "set -e; cd $STACK_DIR; bash -x stack.sh" stack
     fi
     exit 1
 else
@@ -1143,6 +1143,7 @@ fi
 # Quantum Network Configuration
 if is_service_enabled quantum; then
     echo_summary "Configuring Quantum"
+    set -x
 
     # The following variables control the Quantum openvswitch and
     # linuxbridge plugins' allocation of tenant networks and

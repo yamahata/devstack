@@ -887,7 +887,7 @@ fi
 if is_service_enabled tempest; then
     install_tempest
 fi
-if is_service_enabled ryu || (is_service_enabled quantum && "$Q_PLUGIN" = "ryu"); then
+if is_service_enabled ryu || (is_service_enabled quantum && [[ "$Q_PLUGIN" = "ryu" ]]); then
     # ryu service
     git_clone $RYU_REPO $RYU_DIR $RYU_BRANCH
 fi
@@ -940,7 +940,7 @@ fi
 if is_service_enabled tempest; then
     configure_tempest
 fi
-if is_service_enabled ryu || (is_service_enabled quantum && "$Q_PLUGIN" = "ryu"); then
+if is_service_enabled ryu || (is_service_enabled quantum && [[ "$Q_PLUGIN" = "ryu" ]]); then
     setup_develop $RYU_DIR
 fi
 

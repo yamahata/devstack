@@ -1379,7 +1379,6 @@ fi
 # Quantum agent (for compute nodes)
 if is_service_enabled q-agt; then
     # Configure agent for plugin
-    quantum_netns_cleanup
     if [[ "$Q_PLUGIN" = "openvswitch" ]]; then
         # Setup integration bridge
         OVS_BRIDGE=${OVS_BRIDGE:-br-int}

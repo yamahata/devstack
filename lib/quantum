@@ -22,12 +22,6 @@ function quantum_setup_keystone() {
     iniset $conf_file $section admin_password $SERVICE_PASSWORD
 }
 
-function quantum_netns_cleanup() {
-    if [[ "$Q_USE_NAMESPACE" == "True" ]]; then
-        $QUANTUM_DIR/bin/quantum-netns-cleanup --force
-    fi
-}
-
 function quantum_setup_ovs_bridge() {
     local bridge=$1
     for PORT in `sudo ovs-vsctl --no-wait list-ports $bridge`; do
@@ -35,7 +29,6 @@ function quantum_setup_ovs_bridge() {
         sudo ovs-vsctl --no-wait del-port $bridge $PORT
     done
     sudo ovs-vsctl --no-wait -- --if-exists del-br $bridge
-    quantum_netns_cleanup
     sudo ovs-vsctl --no-wait add-br $bridge
     sudo ovs-vsctl --no-wait br-set-external-id $bridge bridge-id $bridge
 }

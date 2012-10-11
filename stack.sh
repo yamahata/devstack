@@ -1170,9 +1170,13 @@ if is_service_enabled ryu; then
 --wsapi_port=$RYU_API_PORT
 --ofp_listen_host=$RYU_OFP_HOST
 --ofp_tcp_listen_port=$RYU_OFP_PORT
---sql_connection=mysql:\/\/$MYSQL_USER:$MYSQL_PASSWORD@$MYSQL_HOST\/$OVS_QUAMTUM?charset=utf8
+--sql_connection=mysql://$MYSQL_USER:$MYSQL_PASSWORD@$MYSQL_HOST/ovs_quantum?charset=utf8
 --quantum_url=http://$Q_HOST:$Q_PORT
+--quantum_admin_username=$Q_ADMIN_USERNAME
+--quantum_admin_password=$SERVICE_PASSWORD
+--quantum_admin_tenant_name=$SERVICE_TENANT_NAME
 --quantum_admin_auth_url=$KEYSTONE_SERVICE_PROTOCOL://$KEYSTONE_SERVICE_HOST:$KEYSTONE_AUTH_PORT/v2.0
+--quantum_auth_strategy=$Q_AUTH_STRATEGY
 --quantum_controller_addr=tcp:$RYU_OFP_HOST:$RYU_OFP_PORT
 EOF
     screen_it ryu "cd $RYU_DIR && $RYU_DIR/bin/ryu-manager --flagfile $RYU_CONF"

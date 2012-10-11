@@ -1,0 +1,6 @@
+python-setuptools
+python-gevent
+python-gflags
+python-netifaces
+# python-openvswitch	# the pached version is necessary
+python-sphinx

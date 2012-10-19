@@ -2,4 +2,5 @@ python-setuptools
 python-gevent
 python-gflags
 python-netifaces
+python-openvswitch
 python-sphinx

@@ -2,5 +2,5 @@ python-setuptools
 python-gevent
 python-gflags
 python-netifaces
-# python-openvswitch	# the patched version is necessary
+python-openvswitch
 python-sphinx

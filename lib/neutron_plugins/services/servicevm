@@ -1,0 +1,45 @@
+# Neutron servicevm plugin
+# ------------------------
+
+# Save trace setting
+MY_XTRACE=$(set +o | grep xtrace)
+set +o xtrace
+
+AGENT_SERVICEVM_BINARY="$NEUTRON_BIN_DIR/neutron-servicevm-rpc-proxy-agent"
+SERVICEVM_PLUGIN="neutron.vm.plugin.ServiceVMPlugin"
+
+function neutron_agent_servicevm_install_agent_packages {
+    :
+}
+
+function neutron_agent_servicevm_configure_common {
+    _neutron_service_plugin_class_add $SERVICEVM_PLUGIN
+}
+
+function neutron_agent_servicevm_configure_agent {
+    SERVICEVM_AGENT_CONF_PATH=$NEUTRON_CONF_DIR/services/servicevm
+    mkdir -p $SERVICEVM_AGENT_CONF_PATH
+
+    SERVICEVM_CONF_FILENAME=$SERVICEVM_AGENT_CONF_PATH/servicevm_agent.ini
+    cp $NEUTRON_DIR/etc/servicevm_agent.ini $SERVICEVM_CONF_FILENAME
+
+    iniset $SERVICEVM_CONF_FILENAME DEFAULT verbose True
+    iniset $SERVICEVM_CONF_FILENAME DEFAULT debug $ENABLE_DEBUG_LOG_LEVEL
+    iniset $SERVICEVM_CONF_FILENAME DEFAULT use_namespaces $Q_USE_NAMESPACE
+    iniset $SERVICEVM_CONF_FILENAME DEFAULT root_helper "$Q_RR_COMMAND"
+
+    _neutron_setup_interface_driver $SERVICEVM_CONF_FILENAME
+}
+
+function neutron_servicevm_agent_stop() {
+    # TODO(yamahata): use pid file
+    pids=$(ps aux | awk '/neutron-servicevm-ns-rpc-proxy/ { print $2 }')
+    [ ! -z "$pids" ] && sudo kill $pids
+}
+
+function neutron_servicevm_stop() {
+    :
+}
+
+# Restore xtrace
+$MY_XTRACE

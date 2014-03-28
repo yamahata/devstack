@@ -351,6 +351,10 @@ source $TOP_DIR/lib/neutron_plugins/services/vpn
 # ---------------------------------
 source $TOP_DIR/lib/neutron_plugins/services/firewall
 
+# Servicevm Service Plugin functions
+# ----------------------------------
+source $TOP_DIR/lib/neutron_plugins/services/servicevm
+
 # Use security group or not
 if has_neutron_plugin_security_group; then
     Q_USE_SECGROUP=${Q_USE_SECGROUP:-True}
@@ -455,6 +459,12 @@ function configure_neutron {
     fi
     if is_service_enabled q-meta; then
         _configure_neutron_metadata_agent
+    fi
+    if is_service_enabled q-servicevm; then
+        _configure_neutron_servicevm
+    fi
+    if is_service_enabled q-servicevm-agent; then
+        _configure_neutron_servicevm_agent
     fi
 
     if [[ "$Q_DVR_MODE" != "legacy" ]]; then
@@ -679,6 +689,10 @@ function install_neutron_agent_packages {
     if is_service_enabled q-lbaas; then
         neutron_agent_lbaas_install_agent_packages
     fi
+
+    if is_service_enabled q-servicevm-agent; then
+        neutron_agent_servicevm_install_agent_packages
+    fi
 }
 
 # Start running processes, including screen
@@ -745,6 +759,10 @@ function start_neutron_agents {
     if is_service_enabled q-metering; then
         run_process q-metering "python $AGENT_METERING_BINARY --config-file $NEUTRON_CONF --config-file $METERING_AGENT_CONF_FILENAME"
     fi
+
+    if is_service_enabled q-servicevm-agent; then
+        screen_it q-servicevm "cd $NEUTRON_DIR && python $AGENT_SERVICEVM_BINARY --config-file $NEUTRON_CONF --config-file $SERVICEVM_CONF_FILENAME"
+    fi
 }
 
 # stop_neutron() - Stop running processes (non-screen)
@@ -776,6 +794,12 @@ function stop_neutron {
     fi
     if is_service_enabled q-metering; then
         neutron_metering_stop
+    fi
+    if is_service_enabled q-servicevm-agent; then
+	neutron_servicevm_agent_stop
+    fi
+    if is_service_enabled q-servicevm; then
+	neutron_servicevm_stop
     fi
 }
 
@@ -1049,6 +1073,15 @@ function _configure_dvr {
     iniset $Q_L3_CONF_FILE DEFAULT agent_mode $Q_DVR_MODE
 }
 
+
+function _configure_neutron_servicevm {
+    neutron_agent_servicevm_configure_common
+}
+
+function _configure_neutron_servicevm_agent {
+    neutron_agent_servicevm_configure_common
+    neutron_agent_servicevm_configure_agent
+}
 
 # _configure_neutron_plugin_agent() - Set config files for neutron plugin agent
 # It is called when q-agt is enabled.

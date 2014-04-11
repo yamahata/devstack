@@ -41,9 +41,9 @@ source $TOP_DIR/exerciserc
 # =========================
 
 # List servicevm template
-neutron svcvm-hosting-device-template-list
-neutron svcvm-hosting-device-list
-neutron svcvm-logical-service-instance-list
+neutron svcvm-device-template-list
+neutron svcvm-device-list
+neutron svcvm-service-instance-list
 
 # create hosting device template
 FLAVOR=m1.tiny
@@ -51,27 +51,30 @@ FLAVOR_ID=$(nova flavor-show m1.tiny  | awk '/ id /{print $4}')
 IMAGE=cirros-0.3.1-x86_64-uec
 IMAGE_ID=$(nova image-show ${IMAGE} | awk '/ id /{print $4}')
 NAME=test-servicevm
-PROVIDER_NAME=test
 HOSTING_DEVICE_DRIVER=nova
-MGMT_DRIVER=noop
+#MGMT_DRIVER=noop
+#MGMT_DRIVER=agent-rpc
+MGMT_DRIVER=agent-proxy
 SERVICE_TYPE=LOADBALANCER
 
-TEMPLATE_ID=$(neutron svcvm-hosting-device-template-create --service-type ${SERVICE_TYPE} --hosting-device-driver ${HOSTING_DEVICE_DRIVER} --mgmt-driver ${MGMT_DRIVER} --name ${NAME} --provider-name ${PROVIDER_NAME} --attribute flavorRef ${FLAVOR_ID} --attribute imageRef ${IMAGE_ID} | awk '/ id /{print $4}')
-neutron svcvm-hosting-device-template-list
-neutron svcvm-hosting-device-template-show ${TEMPLATE_ID}
-neutron svcvm-hosting-device-template-delete ${TEMPLATE_ID}
+TEMPLATE_ID=$(neutron svcvm-device-template-create --template-service-type ${SERVICE_TYPE} --device-driver ${HOSTING_DEVICE_DRIVER} --mgmt-driver ${MGMT_DRIVER} --name ${NAME} --attribute flavorRef ${FLAVOR_ID} --attribute imageRef ${IMAGE_ID} --attribute mgmt-network ${NET_MGMT_ID} | awk '/ id /{print $4}')
+neutron svcvm-device-template-list
+neutron svcvm-device-template-show ${TEMPLATE_ID}
+neutron svcvm-device-template-delete ${TEMPLATE_ID}
 
-TEMPLATE_ID=$(neutron svcvm-hosting-device-template-create --service-type ${SERVICE_TYPE} --hosting-device-driver ${HOSTING_DEVICE_DRIVER} --mgmt-driver ${MGMT_DRIVER} --name ${NAME} --provider-name ${PROVIDER_NAME} --attribute flavorRef ${FLAVOR_ID} --attribute imageRef ${IMAGE_ID} | awk '/ id /{print $4}')
+TEMPLATE_ID=$(neutron svcvm-device-template-create --template-service-type ${SERVICE_TYPE} --device-driver ${HOSTING_DEVICE_DRIVER} --mgmt-driver ${MGMT_DRIVER} --name ${NAME} --attribute flavorRef ${FLAVOR_ID} --attribute imageRef ${IMAGE_ID} | awk '/ id /{print $4}')
 
 
-neutron svcvm-hosting-device-list
-#neutron svcvm-hosting-device-create
+neutron svcvm-device-list
+#neutron svcvm-device-create
 
 # prepare network
 NET_MGMT=net_mgmt
 SUBNET_MGMT=subnet_mgmt
 FIXED_RANGE_MGMT=10.253.255.0/24
 NETWORK_GATEWAY_MGMT=10.253.255.1
+TEMPLATE_ID=$(neutron svcvm-device-template-create --template-service-type ${SERVICE_TYPE} --device-driver ${HOSTING_DEVICE_DRIVER} --mgmt-driver ${MGMT_DRIVER} --name ${NAME} --attribute flavorRef ${FLAVOR_ID} --attribute imageRef ${IMAGE_ID} --attribute mgmt-network ${NET_MGMT_ID} | awk '/ id /{print $4}')
+
 
 NET0=net0
 SUBNET0=subnet0
@@ -126,16 +129,16 @@ PORT_ID=$(neutron lb-vip-show ${VIP_ID} | awk '/ port_id /{print $4})'
 neutron lb-vip-delete ${VIP_ID}
 
 
-HOSTING_DEVICE_ID=$(neutron svcvm-hosting-device-create --service-context network-id=${NET_MGMT_ID},subnet-id=${SUBNET_MGMT_ID},role=mgmt --service-context network-id=${NETWORK_ID1},subnet-id=${SUBNET1_ID},port-id=${PORT_ID},role=two-leg-ingress --service-context network-id=${NETWORK_ID0},subnet-id=${SUBNET0_ID},role=two-leg-egress --hosting-device-template-id ${TEMPLATE_ID} | awk '/ id /{print $4}')
-qneutron svcvm-hosting-device-list
-neutron svcvm-hosting-device-show ${HOSTING_DEVICE_ID}
-neutron svcvm-hosting-device-delete ${HOSTING_DEVICE_ID}
+HOSTING_DEVICE_ID=$(neutron svcvm-device-create --service-context network-id=${NET_MGMT_ID},subnet-id=${SUBNET_MGMT_ID},role=mgmt --service-context network-id=${NETWORK_ID1},subnet-id=${SUBNET1_ID},port-id=${PORT_ID},role=two-leg-ingress --service-context network-id=${NETWORK_ID0},subnet-id=${SUBNET0_ID},role=two-leg-egress --device-template-id ${TEMPLATE_ID} | awk '/ id /{print $4}')
+neutron svcvm-device-list
+neutron svcvm-device-show ${HOSTING_DEVICE_ID}
+neutron svcvm-device-delete ${HOSTING_DEVICE_ID}
 
-HOSTING_DEVICE_ID=$(neutron svcvm-hosting-device-create --service-context network-id=${NET_MGMT_ID},subnet-id=${SUBNET_MGMT_ID},role=mgmt --service-context network-id=${NETWORK_ID1},subnet-id=${SUBNET1_ID},port=${PORT_ID},role=two-leg-ingress --service-context network-id=${NETWORK_ID0},subnet-id=${SUBNET0_ID},role=two-leg-egress --hosting-device-template-id ${TEMPLATE_ID} | awk '/ id /{print $4}')
+HOSTING_DEVICE_ID=$(neutron svcvm-device-create --service-context network-id=${NET_MGMT_ID},subnet-id=${SUBNET_MGMT_ID},role=mgmt --service-context network-id=${NETWORK_ID1},subnet-id=${SUBNET1_ID},port=${PORT_ID},role=two-leg-ingress --service-context network-id=${NETWORK_ID0},subnet-id=${SUBNET0_ID},role=two-leg-egress --device-template-id ${TEMPLATE_ID} | awk '/ id /{print $4}')
 
 VIP_ID=$(neutron lb-vip-create --name ${VIP} --protocol-port ${VIP_PORT} --protocol ${PROTOCOL} --subnet-id ${SUBNET1_ID} ${POOL0_ID} | awk '/ id /{print $4}')
 neutron lb-vip-delete ${VIP_ID}
-neutron svcvm-hosting-device-delete ${HOSTING_DEVICE_ID}
+neutron svcvm-device-delete ${HOSTING_DEVICE_ID}
 
 set +o xtrace
 echo "*********************************************************************"

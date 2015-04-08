@@ -539,6 +539,7 @@ source $TOP_DIR/lib/heat
 source $TOP_DIR/lib/neutron-legacy
 source $TOP_DIR/lib/ldap
 source $TOP_DIR/lib/dstat
+source $TOP_DIR/lib/tacker
 
 # Clone all external plugins
 fetch_plugins
@@ -753,6 +754,9 @@ fi
 if is_service_enabled heat horizon; then
     install_heatclient
 fi
+if is_service_enabled tacker; then
+    install_tackerclient
+fi
 
 # Install middleware
 install_keystonemiddleware
@@ -825,6 +829,10 @@ if is_service_enabled heat; then
     install_heat_other
     cleanup_heat
     configure_heat
+fi
+
+if is_service_enabled tacker; then
+    stack_install_service tacker
 fi
 
 if is_service_enabled tls-proxy || [ "$USE_SSL" == "True" ]; then
@@ -1004,6 +1012,10 @@ if is_service_enabled keystone; then
         create_heat_accounts
     fi
 
+    if is_service_enabled tacker; then
+	create_tacker_accounts
+    fi
+
     # Begone token auth
     unset OS_TOKEN OS_URL
 
@@ -1128,6 +1140,15 @@ if is_service_enabled nova; then
     init_nova_cells
 fi
 
+
+# Tacker
+# ------
+
+if is_service_enabled tacker; then
+    echo_summary "Configureing Tacker"
+    configure_tacker
+    init_tacker
+fi
 
 # Extras Configuration
 # ====================
@@ -1267,6 +1288,10 @@ if is_service_enabled heat; then
     fi
 fi
 
+if is_service_enabled tacker; then
+    echo_summary "Starting Tacker"
+    start_tacker_api
+fi
 
 # Create account rc files
 # =======================

@@ -235,6 +235,9 @@ SWIFT_BRANCH=${SWIFT_BRANCH:-master}
 TROVE_REPO=${TROVE_REPO:-${GIT_BASE}/openstack/trove.git}
 TROVE_BRANCH=${TROVE_BRANCH:-master}
 
+# tacker service
+TACKER_REPO=${TACKER_REPO:-${GIT_BASE}/stackforge/tacker.git}
+TACKER_BRANCH=${TACKER_BRANCH:-master}
 
 ##############
 #
@@ -310,6 +313,10 @@ GITREPO["python-openstackclient"]=${OPENSTACKCLIENT_REPO:-${GIT_BASE}/openstack/
 GITBRANCH["python-openstackclient"]=${OPENSTACKCLIENT_BRANCH:-master}
 # this doesn't exist in a lib file, so set it here
 GITDIR["python-openstackclient"]=$DEST/python-openstackclient
+
+# tacker client
+GITREPO["python-tackerclient"]=${TACKERCLIENT_REPO:-${GIT_BASE}/stackforge/python-tackerclient.git}
+GITBRANCH["python-tackerclient"]=${TACKERCLIENT_BRANCH:-master}
 
 
 ###################

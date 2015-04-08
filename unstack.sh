@@ -181,6 +181,11 @@ if is_service_enabled dstat; then
     stop_dstat
 fi
 
+if is_service_enabled tacker; then
+    stop_tacker
+    cleanup_tacker
+fi
+
 # Clean up the remainder of the screen processes
 SCREEN=$(which screen)
 if [[ -n "$SCREEN" ]]; then

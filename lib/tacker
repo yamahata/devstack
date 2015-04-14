@@ -272,6 +272,15 @@ function configure_tacker {
     iniset $TACKER_CONF DEFAULT nova_api_insecure $TACKER_NOVA_API_INSECURE
     iniset $TACKER_CONF DEFAULT nova_region_name $REGION_NAME
 
+    iniset $TACKER_CONF servicevm_nova auth_plugin password
+    iniset $TACKER_CONF servicevm_nova auth_url $KEYSTONE_AUTH_URI
+    iniset $TACKER_CONF servicevm_nova username nova
+    iniset $TACKER_CONF servicevm_nova password $SERVICE_PASSWORD
+    iniset $TACKER_CONF servicevm_nova user_domain_id default
+    iniset $TACKER_CONF servicevm_nova project_name $SERVICE_TENANT_NAME
+    iniset $TACKER_CONF servicevm_nova project_domain_id default
+    iniset $TACKER_CONF servicevm_nova region_name $REGION_NAME
+
     _tacker_setup_rootwrap
 }
 

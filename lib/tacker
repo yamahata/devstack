@@ -281,9 +281,9 @@ function configure_tacker {
     iniset $TACKER_CONF servicevm_nova project_domain_id default
     iniset $TACKER_CONF servicevm_nova region_name $REGION_NAME
 
-    iniset $TACKER_CONF servicevm_heat heat_uri http://loaclhost:8004/v1
-    iniset $TACKER_CONF servicevm_heat stack_retries 5
-    iniset $TACKER_CONF servicevm_heat stack_retry_wait 3
+    iniset $TACKER_CONF servicevm_heat heat_uri http://$SERVICE_HOST:8004/v1
+    iniset $TACKER_CONF servicevm_heat stack_retries 10
+    iniset $TACKER_CONF servicevm_heat stack_retry_wait 5
 
     _tacker_setup_rootwrap
 }

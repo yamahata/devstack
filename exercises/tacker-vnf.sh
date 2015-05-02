@@ -133,7 +133,7 @@ vdus:
 EOF
 )
 
-neutVNF_ID=$(tacker vnf-create --vnfd-id ${VNFD_ID} --config "${CONFIG_DATA}" | awk '/ id /{print $4}')
+VNF_ID=$(tacker vnf-create --name vnf-name --vnfd-id ${VNFD_ID} --config "${CONFIG_DATA}" | awk '/ id /{print $4}')
 
 set +o xtrace
 echo "*********************************************************************"

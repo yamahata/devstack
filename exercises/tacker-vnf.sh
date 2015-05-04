@@ -101,6 +101,7 @@ vdus:
     network_interfaces:
       management:
         network: net_mgmt
+        management: true
       pkt_in:
         network: net0
       pkt_out:

@@ -42,10 +42,13 @@ source $TOP_DIR/exerciserc
 
 # create necessary networks
 # prepare network
+MGMT_PHYS_NET=mgmtphysnet0
+BR_MGMT=br-mgmt0
 NET_MGMT=net_mgmt
 SUBNET_MGMT=subnet_mgmt
 FIXED_RANGE_MGMT=10.253.255.0/24
 NETWORK_GATEWAY_MGMT=10.253.255.1
+NETWORK_GATEWAY_MGMT_IP=10.253.255.1/24
 
 NET0=net0
 SUBNET0=subnet0
@@ -66,7 +69,7 @@ do
 done
 
 
-NET_MGMT_ID=$(neutron net-create ${NET_MGMT} | awk '/ id /{print $4}')
+NET_MGMT_ID=$(neutron net-create --provider:network_type flat --provider:physical_network ${MGMT_PHYS_NET} ${NET_MGMT} | awk '/ id /{print $4}')
 SUBNET_MGMT_ID=$(neutron subnet-create --name ${SUBNET_MGMT} --ip-version 4 --gateway ${NETWORK_GATEWAY_MGMT} ${NET_MGMT_ID} ${FIXED_RANGE_MGMT} | awk '/ id /{print $4}')
 NET0_ID=$(neutron net-create ${NET0} | awk '/ id /{print $4}')
 SUBNET0_ID=$(neutron subnet-create --name ${SUBNET0} --ip-version 4 --gateway ${NETWORK_GATEWAY0} ${NET0_ID} ${FIXED_RANGE0} | awk '/ id /{print $4}')
@@ -79,6 +82,9 @@ echo ${NET0_ID}
 echo ${SUBNET0_ID}
 echo ${NET1_ID}
 echo ${SUBNET1_ID}
+
+sudo ifconfig ${BR_MGMT} inet 0.0.0.0
+sudo ifconfig ${BR_MGMT} inet ${NETWORK_GATEWAY_MGMT_IP}
 
 VNFD_NAME=vnfd-demo
 #VNFD_FILE=/home/yamahata/openstack/tacker/tacker/vnfd-template/vnfd-use-sample2.yaml

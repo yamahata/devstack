@@ -112,7 +112,8 @@ function create_tacker_accounts {
 	# openstack user create tacker --password service-password
 	# openstack role add admin --user <uuid> --project service
         create_service_user "tacker"
-        create_service_user "tacker" advsvc
+	get_or_create_role "advsvc"
+        create_service_user "tacker" "advsvc"
 
         if [[ "$KEYSTONE_CATALOG_BACKEND" = 'sql' ]]; then
 

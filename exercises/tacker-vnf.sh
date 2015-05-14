@@ -120,7 +120,7 @@ vdus:
   vdu1:
     id: vdu1
     vm_image: cirros-0.3.2-x86_64-uec
-    instance_type: m1.micro
+    instance_type: m1.tiny
 
     network_interfaces:
       management:
